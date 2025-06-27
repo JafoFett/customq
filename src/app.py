@@ -134,17 +134,30 @@ else:
                 answer = answer.replace(".  ", ". ")
                 
                 # 2. Add paragraph breaks after citation clusters
-                # This handles cases like [1] followed by new sentence
                 answer = re.sub(r'(\[\d+\])\s*([A-Z])', r'\1\n\n\2', answer)
                 
-                # 3. Add breaks after sentences that end with citations and are followed by "For", "In", "Additionally", etc.
+                # 3. Add breaks after sentences that end with citations and are followed by transition words
                 answer = re.sub(r'(\[\d+\])\s*(For |In |Additionally|Furthermore|Also|However)', r'\1\n\n\2', answer)
                 
                 # 4. Clean up any triple newlines
                 answer = re.sub(r'\n{3,}', '\n\n', answer)
                 
-                # Format the references section
-                if "references" in response:
+                # 5. SMART REFERENCE HANDLING - Only show references for actual answers
+                should_show_references = (
+                    "references" in response and 
+                    response["references"] and
+                    not any(phrase in answer.lower() for phrase in [
+                        "no answer is found",
+                        "i don't have information",
+                        "i cannot find",
+                        "not available in my knowledge",
+                        "i don't know",
+                        "unable to find",
+                        "no information available"
+                    ])
+                )
+                
+                if should_show_references:
                     full_response = f"""{answer}\n\n---\n\n### References\n\n{response["references"]}"""
                 else:
                     full_response = answer
