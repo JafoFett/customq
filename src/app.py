@@ -121,82 +121,70 @@ else:
             with st.spinner("Thinking..."):
                 placeholder = st.empty()
                 response = utils.get_queue_chain(prompt,st.session_state["conversationId"],
-                                                 st.session_state["parentMessageId"],
-                                                 st.session_state["idc_jwt_token"]["idToken"])
+                                                st.session_state["parentMessageId"],
+                                                st.session_state["idc_jwt_token"]["idToken"])
                 
-                # Format the answer following Google Developer Documentation Style Guide
+                # Get the raw answer
                 answer = response["answer"]
                 
-                # Apply consistent sentence spacing (single space after periods)
+                # SIMPLIFIED FORMATTING - only essential cleanup
+                # 1. Fix double spaces after periods
                 answer = answer.replace(".  ", ". ")
                 
-                # Format paragraphs with appropriate spacing
-                # Google style recommends clear paragraph breaks for readability
-                paragraphs = []
-                current_paragraph = []
+                # 2. Preserve natural paragraph breaks by converting double newlines to markdown breaks
+                answer = answer.replace("\n\n", "\n\n")  # Keep existing double breaks
                 
-                for line in answer.split("\n"):
+                # 3. Convert single newlines to double newlines for better paragraph separation
+                # But preserve list formatting and code blocks
+                lines = answer.split('\n')
+                formatted_lines = []
+                
+                for i, line in enumerate(lines):
                     line = line.strip()
+                    
+                    # Skip empty lines
                     if not line:
-                        if current_paragraph:
-                            paragraphs.append(" ".join(current_paragraph))
-                            current_paragraph = []
-                    else:
-                        # Handle list items according to Google style (no extra line breaks within lists)
-                        if (line.startswith("- ") or line.startswith("* ") or 
-                            (line[0].isdigit() and ". " in line[:5])):
-                            # If we were building a paragraph, finish it
-                            if current_paragraph:
-                                paragraphs.append(" ".join(current_paragraph))
-                                current_paragraph = []
-                            # Add the list item directly
-                            paragraphs.append(line)
-                        else:
-                            current_paragraph.append(line)
+                        formatted_lines.append("")
+                        continue
+                    
+                    # Preserve list items
+                    if (line.startswith("- ") or line.startswith("* ") or 
+                        line.startswith("+ ") or 
+                        (len(line) > 2 and line[0].isdigit() and line[1:3] in [". ", ") "])):
+                        formatted_lines.append(line)
+                        continue
+                    
+                    # Preserve headings
+                    if line.startswith("#"):
+                        formatted_lines.append("")  # Add space before heading
+                        formatted_lines.append(line)
+                        formatted_lines.append("")  # Add space after heading
+                        continue
+                    
+                    # Regular text - add with proper spacing
+                    formatted_lines.append(line)
+                    
+                    # Add extra space after sentences that end paragraphs
+                    # Look ahead to see if next line starts a new thought
+                    if (i + 1 < len(lines) and 
+                        line.endswith(('.', '!', '?')) and 
+                        lines[i + 1].strip() and 
+                        not lines[i + 1].strip().startswith(("- ", "* ", "+")) and
+                        not lines[i + 1].strip()[0].isdigit()):
+                        formatted_lines.append("")  # Add paragraph break
                 
-                # Add any remaining paragraph
-                if current_paragraph:
-                    paragraphs.append(" ".join(current_paragraph))
+                # Join lines back together
+                answer = '\n'.join(formatted_lines)
                 
-                # Join paragraphs with double line breaks for clarity
-                answer = "\n\n".join(paragraphs)
-                
-                # Format code blocks with proper markdown syntax
-                # Google style emphasizes proper code formatting
+                # 4. Clean up excessive blank lines (more than 2 consecutive)
                 import re
-                code_block_pattern = r'```(.*?)```'
-                answer = re.sub(code_block_pattern, r'```\1```', answer, flags=re.DOTALL)
+                answer = re.sub(r'\n{3,}', '\n\n', answer)
                 
-                # Use consistent heading styles (Google prefers sentence case for headings)
-                heading_pattern = r'(#+)\s+(.*)'
-                def format_heading(match):
-                    level, text = match.groups()
-                    # Convert to sentence case (first letter capitalized, rest lowercase)
-                    formatted_text = text[0].upper() + text[1:].lower() if text else ""
-                    return f"{level} {formatted_text}"
-                
-                answer = re.sub(heading_pattern, format_heading, answer)
-                
-                # Use consistent terminology (Google style emphasizes consistency)
-                key_terms = {
-                    "vendor list": "vendor list",
-                    "approved vendor list": "Approved Vendor List",
-                    "deliverable": "deliverable",
-                    "suppliers": "suppliers",
-                    "equipment": "equipment"
-                }
-                
-                # Apply consistent terminology with proper formatting
-                for term, formatted_term in key_terms.items():
-                    # Case-insensitive replacement with consistent formatting
-                    pattern = re.compile(re.escape(term), re.IGNORECASE)
-                    answer = pattern.sub(f"**{formatted_term}**", answer)
-                
-                # Format the references section according to Google style
+                # Format the references section
                 if "references" in response:
-                    full_response = f"""{answer}\n\n---\n### References\n{response["references"]}"""
+                    full_response = f"""{answer}\n\n---\n\n### References\n\n{response["references"]}"""
                 else:
-                    full_response = f"""{answer}\n\n---\nNo references available"""
+                    full_response = f"""{answer}"""
                 
                 placeholder.markdown(full_response)
                 st.session_state["conversationId"] = response["conversationId"]
