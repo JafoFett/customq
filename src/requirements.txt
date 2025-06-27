@@ -1,0 +1,5 @@
+pyjwt
+streamlit==1.32
+streamlit-oauth==0.1.13
+streamlit-feedback
+boto3
