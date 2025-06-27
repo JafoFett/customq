@@ -126,42 +126,37 @@ else:
                 
                 # Get the raw answer
                 answer = response["answer"]
-                
-                # MINIMAL PROCESSING - let natural breaks work
+
                 import re
-                
+
                 # 1. Fix double spaces
                 answer = answer.replace(".  ", ". ")
-                
-                # 2. Add paragraph breaks after citation clusters
+
+                # 2. Add paragraph breaks after citation clusters (e.g. "[1]" followed by a capital letter)
                 answer = re.sub(r'(\[\d+\])\s*([A-Z])', r'\1\n\n\2', answer)
-                
-                # 3. Add breaks after sentences that end with citations and are followed by transition words
+
+                # 3. Add breaks after citations when followed by transition words
                 answer = re.sub(r'(\[\d+\])\s*(For |In |Additionally|Furthermore|Also|However)', r'\1\n\n\2', answer)
-                
-                # 4. Clean up any triple newlines
+
+                # 4. Clean up triple newlines
                 answer = re.sub(r'\n{3,}', '\n\n', answer)
-                
-                # 5. SMART REFERENCE HANDLING - Only show references for actual answers
-                should_show_references = (
-                    "references" in response and 
-                    response["references"] and
-                    not any(phrase in answer.lower() for phrase in [
-                        "no answer is found",
-                        "i don't have information",
-                        "i cannot find",
-                        "not available in my knowledge",
-                        "i don't know",
-                        "unable to find",
-                        "no information available"
-                    ])
-                )
-                
-                if should_show_references:
+
+                # Check if the answer contains phrases indicating no substantial answer was found.
+                no_answer_phrases = [
+                    "no answer is found",
+                    "i don't have information",
+                    "i cannot find",
+                    "no information available",
+                    "Sorry, I could not find relevant information to complete your request"
+                ]
+
+                is_no_answer = any(phrase in answer.lower() for phrase in no_answer_phrases)
+
+                if "references" in response and not is_no_answer:
                     full_response = f"""{answer}\n\n---\n\n### References\n\n{response["references"]}"""
                 else:
                     full_response = answer
-                
+
                 placeholder.markdown(full_response)
                 st.session_state["conversationId"] = response["conversationId"]
                 st.session_state["parentMessageId"] = response["parentMessageId"]
