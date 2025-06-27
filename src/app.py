@@ -127,64 +127,27 @@ else:
                 # Get the raw answer
                 answer = response["answer"]
                 
-                # SIMPLIFIED FORMATTING - only essential cleanup
-                # 1. Fix double spaces after periods
+                # MINIMAL PROCESSING - let natural breaks work
+                import re
+                
+                # 1. Fix double spaces
                 answer = answer.replace(".  ", ". ")
                 
-                # 2. Preserve natural paragraph breaks by converting double newlines to markdown breaks
-                answer = answer.replace("\n\n", "\n\n")  # Keep existing double breaks
+                # 2. Add paragraph breaks after citation clusters
+                # This handles cases like [1] followed by new sentence
+                answer = re.sub(r'(\[\d+\])\s*([A-Z])', r'\1\n\n\2', answer)
                 
-                # 3. Convert single newlines to double newlines for better paragraph separation
-                # But preserve list formatting and code blocks
-                lines = answer.split('\n')
-                formatted_lines = []
+                # 3. Add breaks after sentences that end with citations and are followed by "For", "In", "Additionally", etc.
+                answer = re.sub(r'(\[\d+\])\s*(For |In |Additionally|Furthermore|Also|However)', r'\1\n\n\2', answer)
                 
-                for i, line in enumerate(lines):
-                    line = line.strip()
-                    
-                    # Skip empty lines
-                    if not line:
-                        formatted_lines.append("")
-                        continue
-                    
-                    # Preserve list items
-                    if (line.startswith("- ") or line.startswith("* ") or 
-                        line.startswith("+ ") or 
-                        (len(line) > 2 and line[0].isdigit() and line[1:3] in [". ", ") "])):
-                        formatted_lines.append(line)
-                        continue
-                    
-                    # Preserve headings
-                    if line.startswith("#"):
-                        formatted_lines.append("")  # Add space before heading
-                        formatted_lines.append(line)
-                        formatted_lines.append("")  # Add space after heading
-                        continue
-                    
-                    # Regular text - add with proper spacing
-                    formatted_lines.append(line)
-                    
-                    # Add extra space after sentences that end paragraphs
-                    # Look ahead to see if next line starts a new thought
-                    if (i + 1 < len(lines) and 
-                        line.endswith(('.', '!', '?')) and 
-                        lines[i + 1].strip() and 
-                        not lines[i + 1].strip().startswith(("- ", "* ", "+")) and
-                        not lines[i + 1].strip()[0].isdigit()):
-                        formatted_lines.append("")  # Add paragraph break
-                
-                # Join lines back together
-                answer = '\n'.join(formatted_lines)
-                
-                # 4. Clean up excessive blank lines (more than 2 consecutive)
-                import re
+                # 4. Clean up any triple newlines
                 answer = re.sub(r'\n{3,}', '\n\n', answer)
                 
                 # Format the references section
                 if "references" in response:
                     full_response = f"""{answer}\n\n---\n\n### References\n\n{response["references"]}"""
                 else:
-                    full_response = f"""{answer}"""
+                    full_response = answer
                 
                 placeholder.markdown(full_response)
                 st.session_state["conversationId"] = response["conversationId"]
