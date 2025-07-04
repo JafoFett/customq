@@ -34,7 +34,7 @@ oauth2 = utils.configure_oauth_component()
 if "token" not in st.session_state:
     # If not, show authorize button
     redirect_uri = f"https://{utils.OAUTH_CONFIG['ExternalDns']}/component/streamlit_oauth.authorize_button/index.html"
-    result = oauth2.authorize_button("Connect with Cognito",scope="openid", pkce="S256", redirect_uri=redirect_uri)
+    result = oauth2.authorize_button("Connect with Cognito", scope="openid", redirect_uri=redirect_uri)
     if result and "token" in result:
         # If authorization successful, save token in session state
         st.session_state.token = result.get("token")
